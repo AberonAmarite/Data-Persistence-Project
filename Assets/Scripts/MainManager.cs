@@ -7,21 +7,19 @@ using UnityEngine.UI;
 
 public class MainManager : MonoBehaviour
 {
-    public static MainManager Instance;
     public Brick BrickPrefab;
     public int LineCount = 6;
     public Rigidbody Ball;
 
     public Text ScoreText;
-    public Text BestScoreText;
+    public Text[] BestScoreTexts;
     public GameObject GameOverText;
 
     private bool m_Started = false;
     private int m_Points;
-
+    public SaveDatas savedatas;
     private bool m_GameOver = false;
-    public string recordUsername;
-    public int recordScore;
+    private bool newGame;
 
     private void SpawnBricks() {
         const float step = 0.6f;
@@ -42,7 +40,16 @@ public class MainManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-       SpawnBricks();
+        newGame = true;
+        ScoreText.text = MenuHandler.username + " Score : 0";
+        LoadScores();
+        
+        for (int i = 0; i < 10; i++)
+        {
+            BestScoreTexts[i].text = $"{i + 1}. {savedatas.dataArr[i].username}: {savedatas.dataArr[i].maxScore}";
+        }
+
+        SpawnBricks();
     }
 
     private void Update()
@@ -62,33 +69,25 @@ public class MainManager : MonoBehaviour
         }
         else if (m_GameOver)
         {
-            if (m_Points > recordScore)
-            {
-                recordScore = m_Points;
-                recordUsername = MenuHandler.username;
-                SaveScore();
-            }
+
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
         }
-        if (m_Points != 0 && m_Points % 96 == 0) {
-            SpawnBricks();
-        }
+        
     }
-    private void Awake()
-    {
-
-        ScoreText.text = MenuHandler.username + " Score : 0";
-        LoadScore();
-        BestScoreText.text = $"Best Score: {recordUsername}: {recordScore}";
-    }
+   
 
     void AddPoint(int point)
     {
         m_Points += point;
         ScoreText.text = MenuHandler.username + $" Score : {m_Points}";
+        if (m_Points != 0 && m_Points % 96 == 0)
+        { 
+                SpawnBricks();
+   
+        }
     }
 
     public void GameOver()
@@ -96,37 +95,81 @@ public class MainManager : MonoBehaviour
         m_GameOver = true;
 
         GameOverText.SetActive(true);
+
+        if (newGame)
+        {
+
+            int pos = FindPos();
+            if (pos != -1)
+            {
+                for (int i = 9; i > pos; i--)
+                {
+                    savedatas.dataArr[i] = savedatas.dataArr[i - 1];
+                }
+                savedatas.dataArr[pos].username = MenuHandler.username;
+                savedatas.dataArr[pos].maxScore = m_Points;
+                for (int i = 0; i < 10; i++)
+                {
+                    Debug.Log(this.savedatas.dataArr[i].username);
+                }
+            }
+            SaveScores();
+            newGame = false;
+            return;
+        }
     }
     [System.Serializable]
-    class SaveData{
+    public class SaveData{
         public string username;
         public int maxScore;
     }
-
-    public void SaveScore()
-    {
-        SaveData saveData = new SaveData();
-        saveData.username = recordUsername;
-        saveData.maxScore = recordScore;
-        string json = JsonUtility.ToJson(saveData);
-        File.WriteAllText(Application.persistentDataPath + "/savefile.json", json);
-        
+    [System.Serializable]
+    public class SaveDatas {
+        public SaveData[] dataArr;
     }
 
-    public void LoadScore()
+    private int FindPos() {
+        if(!newGame) return -1;
+        for (int i = 0; i < 10; i++)
+        {
+            if (m_Points > savedatas.dataArr[i].maxScore) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    public void SaveScores()
     {
+        string json = JsonUtility.ToJson(savedatas);
+        File.WriteAllText(Application.persistentDataPath + "/savefile.json", json);
+    }
+
+    public void LoadScores()
+    {
+        SaveDatas savedatasLocal = new SaveDatas();
+        savedatasLocal.dataArr = new SaveData[10];
+        for (int i = 0; i < 10; i++) {
+            savedatasLocal.dataArr[i]=new SaveData();
+        }
         string path = Application.persistentDataPath + "/savefile.json";
         if (File.Exists(path))
         {
-            
             string json = File.ReadAllText(path);
-            SaveData data = JsonUtility.FromJson<SaveData>(json);
-            recordUsername = data.username;
-            recordScore = data.maxScore;
+            SaveDatas data = JsonUtility.FromJson<SaveDatas>(json);
+                 for (int i = 0; i < 10; i++)
+            {
+                savedatasLocal.dataArr[i].username = data.dataArr[i].username;
+                savedatasLocal.dataArr[i].maxScore = data.dataArr[i].maxScore;
+            } 
         }
         else {
-            recordUsername = "Name";
-            recordScore = 0;
+            for (int i = 0; i < 10; i++) {
+                savedatasLocal.dataArr[i].username = "Name";
+                savedatasLocal.dataArr[i].maxScore = 0;
+            }
         }
+        this.savedatas = savedatasLocal;
+        
     }
 }
